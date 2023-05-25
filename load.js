@@ -12,7 +12,7 @@ function formatDate(date) {
   const hours = ('0' + date.getHours()).slice(-2);
   const minutes = ('0' + date.getMinutes()).slice(-2);
   const seconds = ('0' + date.getSeconds()).slice(-2);
-  return `${year}${month}${day},${hours}${minutes}${seconds}`;
+  return `${year}${month}${day}`;
 }
 
 // Функция для добавления данных в файл
@@ -26,6 +26,7 @@ async function getLastCandle(symbol) {
   const [time, open, high, low, close, volume] = response.data[0];
   return {
     date: formatDate(new Date(time)),
+    time,
     open,
     high,
     low,
@@ -39,10 +40,21 @@ async function getLastCandle(symbol) {
   try {
     const lastCandle = await getLastCandle(SYMBOL);
     const fileExists = fs.existsSync(FILE_NAME);
-    if (!fileExists) {
-      appendToFile('DATE,TIME,OPEN,HIGH,LOW,CLOSE,VOL');
+    let data = {};
+    if (fileExists) {
+      data = JSON.parse(fs.readFileSync(FILE_NAME));
     }
-    appendToFile(`${lastCandle.date},${lastCandle.open},${lastCandle.high},${lastCandle.low},${lastCandle.close},${lastCandle.volume}`);
+    if (!data[lastCandle.date]) {
+      data[lastCandle.date] = {};
+    }
+    data[lastCandle.date][lastCandle.time] = {
+      OPEN: lastCandle.open,
+      HIGH: lastCandle.high,
+      LOW: lastCandle.low,
+      CLOSE: lastCandle.close,
+      VOL: lastCandle.volume
+    };
+    fs.writeFileSync(FILE_NAME, JSON.stringify(data, null, 2));
     console.log('Данные успешно добавлены в файл');
   } catch (error) {
     console.error(error);
