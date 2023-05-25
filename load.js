@@ -17,9 +17,9 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
   const closePrice = parseFloat(data[0][4]);
   const volume = parseFloat(data[0][5]);
 
-  // Преобразуем дату и время в нужный формат
-  const formattedDate = date.toLocaleString('ru-RU', {year: 'numeric', month: '2-digit', day: '2-digit'}).split('.').reverse().join('');
-  const formattedTime = date.toLocaleString('ru-RU', {hour: '2-digit', minute: '2-digit', second: '2-digit'}).split(':').join('');
+  // Преобразуем дату и время в нужный формат (ISO 8601)
+  const formattedDate = date.toISOString().split('T')[0];
+  const formattedTime = date.toISOString().split('T')[1].split('.')[0];
 
   // Добавляем полученные значения в конец файла price.csv
   const csvWriter = createCsvWriter({
