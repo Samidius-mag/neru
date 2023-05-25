@@ -42,17 +42,19 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
     append: true
   });
 
-  const record = {
-    date: formattedDate,
-    time: formattedTime,
-    open: openPrice,
-    high: highPrice,
-    low: lowPrice,
-    close: closePrice,
-    vol: volume
-  };
+  const record = [
+    {
+      date: formattedDate,
+      time: formattedTime,
+      open: openPrice,
+      high: highPrice,
+      low: lowPrice,
+      close: closePrice,
+      vol: volume
+    }
+  ];
 
-  csvWriter.writeRecords([record])
+  csvWriter.writeRecords(record)
     .then(() => {
       console.log('Данные успешно добавлены в файл price.csv');
     })
