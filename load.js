@@ -9,17 +9,12 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
     .then(response => response.json());
 
   // Разбираем полученные данные и извлекаем необходимые значения
-  const timestamp = parseInt(data[0][0]) / 1000;
-  const date = new Date(timestamp);
+  const timestamp = Math.floor(Date.now() / 1000);
   const openPrice = parseFloat(data[0][1]);
   const highPrice = parseFloat(data[0][2]);
   const lowPrice = parseFloat(data[0][3]);
   const closePrice = parseFloat(data[0][4]);
   const volume = parseFloat(data[0][5]);
-
-  // Преобразуем дату и время в нужный формат (ISO 8601)
-  const formattedDate = date.toISOString().split('T')[0];
-  const formattedTime = date.toISOString().split('T')[1].split('.')[0];
 
   // Добавляем полученные значения в конец файла price.csv
   const csvWriter = createCsvWriter({
@@ -37,8 +32,7 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
   });
 
   const record = {
-    date: formattedDate,
-    time: formattedTime,
+    date: timestamp,
     open: openPrice,
     high: highPrice,
     low: lowPrice,
