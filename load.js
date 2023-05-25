@@ -10,11 +10,22 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 
   // Разбираем полученные данные и извлекаем необходимые значения
   const timestamp = Math.floor(Date.now() / 1000);
+  const date = new Date(timestamp * 1000);
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = date.getSeconds();
   const openPrice = parseFloat(data[0][1]);
   const highPrice = parseFloat(data[0][2]);
   const lowPrice = parseFloat(data[0][3]);
   const closePrice = parseFloat(data[0][4]);
   const volume = parseFloat(data[0][5]);
+
+  // Преобразуем дату и время в нужный формат (без разделителей)
+  const formattedDate = `${year}${month.toString().padStart(2, '0')}${day.toString().padStart(2, '0')}`;
+  const formattedTime = `${hours.toString().padStart(2, '0')}${minutes.toString().padStart(2, '0')}${seconds.toString().padStart(2, '0')}`;
 
   // Добавляем полученные значения в конец файла price.csv
   const csvWriter = createCsvWriter({
@@ -32,7 +43,8 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
   });
 
   const record = {
-    date: timestamp,
+    date: formattedDate,
+    time: formattedTime,
     open: openPrice,
     high: highPrice,
     low: lowPrice,
