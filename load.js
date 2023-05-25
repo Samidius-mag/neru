@@ -31,26 +31,26 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
   const csvWriter = createCsvWriter({
     path: 'price.csv',
     header: [
-      {id: 'date', title: 'DATE'},
-      {id: 'time', title: 'TIME'},
-      {id: 'open', title: 'OPEN'},
-      {id: 'high', title: 'HIGH'},
-      {id: 'low', title: 'LOW'},
-      {id: 'close', title: 'CLOSE'},
-      {id: 'vol', title: 'VOL'}
+      {id: 'DATE', title: 'DATE'},
+      {id: 'TIME', title: 'TIME'},
+      {id: 'OPEN', title: 'OPEN'},
+      {id: 'HIGH', title: 'HIGH'},
+      {id: 'LOW', title: 'LOW'},
+      {id: 'CLOSE', title: 'CLOSE'},
+      {id: 'VOL', title: 'VOL'}
     ],
     append: true
   });
 
   const record = [
     {
-      date: formattedDate,
-      time: formattedTime,
-      open: openPrice,
-      high: highPrice,
-      low: lowPrice,
-      close: closePrice,
-      vol: volume
+      DATE: formattedDate,
+      TIME: formattedTime,
+      OPEN: openPrice,
+      HIGH: highPrice,
+      LOW: lowPrice,
+      CLOSE: closePrice,
+      VOL: volume
     }
   ];
 
