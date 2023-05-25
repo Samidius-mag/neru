@@ -27,7 +27,7 @@ function appendPriceData(data) {
     if (fileData) {
       prices = JSON.parse(fileData);
     }
-    const prices = JSON.parse(fileData);
+    
     const lastPrice = data[0];
     const date = new Date(lastPrice[0]);
     const dateString = date.getFullYear() + pad(date.getMonth() + 1) + pad(date.getDate());
