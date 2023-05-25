@@ -18,8 +18,9 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
   const closePrice = parseFloat(data[0][4]);
   const volume = parseFloat(data[0][5]);
 
-  // Преобразуем дату и время в UTC формат
-  const utcDate = new Date(date + 'T' + time + 'Z').toUTCString();
+  // Преобразуем дату и время в нужный формат
+  const formattedDate = date.split('-').join('');
+  const formattedTime = time.split(':').join('');
 
   // Добавляем полученные значения в конец файла price.csv
   const csvWriter = createCsvWriter({
@@ -37,8 +38,8 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
   });
 
   const record = {
-    date: utcDate.slice(0, 16),
-    time: utcDate.slice(17, 25),
+    date: formattedDate,
+    time: formattedTime,
     open: openPrice,
     high: highPrice,
     low: lowPrice,
