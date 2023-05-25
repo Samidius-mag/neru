@@ -1,28 +1,62 @@
-const csv = require('csv-parser');
-const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-
-// Читаем данные из файла price.csv
+const https = require('https');
 const fs = require('fs');
-const results = [];
-fs.createReadStream('price.csv')
-  .pipe(csv())
-  .on('data', (data) => results.push(data))
-  .on('end', () => {
-    // Преобразуем данные в нужный формат
-    const formattedData = results.map((item) => {
-      const date = item.DATE;
-      const time = item.TIME.padStart(6, '0');
-      const open = parseFloat(item.OPEN).toFixed(7);
-      const high = parseFloat(item.HIGH).toFixed(7);
-      const low = parseFloat(item.LOW).toFixed(7);
-      const close = parseFloat(item.CLOSE).toFixed(7);
-      const vol = parseInt(item.VOL);
-      return `${date}\t${time}\t${open}\t${high}\t${low}\t${close}\t${vol}`;
-    });
 
-    // Записываем данные в новый файл price_formatted.txt
-    fs.writeFile('price.csv', formattedData.join('\n'), (err) => {
-      if (err) throw err;
-      console.log('Данные успешно записаны в файл price_formatted.txt');
+// Функция для выполнения запроса к API Binance
+function getPriceData(callback) {
+  https.get('https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=1', (res) => {
+    let data = '';
+    res.on('data', (chunk) => {
+      data += chunk;
+    });
+    res.on('end', () => {
+      callback(JSON.parse(data));
+    });
+  }).on('error', (err) => {
+    console.log('Error: ' + err.message);
+  });
+}
+
+// Функция для добавления данных в файл price.json
+function appendPriceData(data) {
+  fs.readFile('price.json', 'utf8', (err, fileData) => {
+    if (err) {
+      console.log('Error: ' + err.message);
+      return;
+    }
+    const prices = JSON.parse(fileData);
+    const lastPrice = data[0];
+    const date = new Date(lastPrice[0]);
+    const dateString = date.getFullYear() + pad(date.getMonth() + 1) + pad(date.getDate());
+    const timeString = pad(date.getHours()) + pad(date.getMinutes()) + pad(date.getSeconds());
+    const open = lastPrice[1];
+    const high = lastPrice[2];
+    const low = lastPrice[3];
+    const close = lastPrice[4];
+    const volume = lastPrice[5];
+    const newPrice = {
+      DATE: dateString,
+      TIME: timeString,
+      OPEN: open,
+      HIGH: high,
+      LOW: low,
+      CLOSE: close,
+      VOL: volume
+    };
+    prices.push(newPrice);
+    fs.writeFile('price.json', JSON.stringify(prices), (err) => {
+      if (err) {
+        console.log('Error: ' + err.message);
+        return;
+      }
+      console.log('Data appended to price.json');
     });
   });
+}
+
+// Функция для добавления ведущего нуля к числу, если оно меньше 10
+function pad(num) {
+  return num < 10 ? '0' + num : num;
+}
+
+// Вызываем функцию для получения данных о последней свече
+getPriceData(appendPriceData);
