@@ -23,6 +23,10 @@ function appendPriceData(data) {
       console.log('Error: ' + err.message);
       return;
     }
+    let prices = [];
+    if (fileData) {
+      prices = JSON.parse(fileData);
+    }
     const prices = JSON.parse(fileData);
     const lastPrice = data[0];
     const date = new Date(lastPrice[0]);
