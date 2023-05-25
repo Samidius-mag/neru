@@ -10,8 +10,7 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 
   // Разбираем полученные данные и извлекаем необходимые значения
   const timestamp = parseInt(data[0][0]) / 1000;
-  const date = new Date(timestamp).toISOString().slice(0, 10);
-  const time = new Date(timestamp).toISOString().slice(11, 19);
+  const date = new Date(timestamp);
   const openPrice = parseFloat(data[0][1]);
   const highPrice = parseFloat(data[0][2]);
   const lowPrice = parseFloat(data[0][3]);
@@ -19,8 +18,8 @@ const createCsvWriter = require('csv-writer').createObjectCsvWriter;
   const volume = parseFloat(data[0][5]);
 
   // Преобразуем дату и время в нужный формат
-  const formattedDate = date.split('-').join('');
-  const formattedTime = time.split(':').join('');
+  const formattedDate = date.toLocaleString('ru-RU', {year: 'numeric', month: '2-digit', day: '2-digit'}).split('.').reverse().join('');
+  const formattedTime = date.toLocaleString('ru-RU', {hour: '2-digit', minute: '2-digit', second: '2-digit'}).split(':').join('');
 
   // Добавляем полученные значения в конец файла price.csv
   const csvWriter = createCsvWriter({
