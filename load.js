@@ -1,64 +1,104 @@
-async function run() {
-  const fs = require('fs');
 const csv = require('csv-parser');
-const tf = require('@tensorflow/tfjs-node');
+const fs = require('fs');
+const tf = require('@tensorflow/tfjs');
+
+const prepareData = (data, windowSize) => {
+  const input = [];
+  const output = [];
+
+  for (let i = windowSize; i < data.length; i++) {
+    const window = data.slice(i - windowSize, i);
+
+    input.push([
+      window.map((d) => d.open),
+      window.map((d) => d.high),
+      window.map((d) => d.low),
+      window.map((d) => d.close),
+      window.map((d) => d.volume),
+    ]);
+
+    output.push([
+      data[i + 1].open > data[i].open ? 1 : 0,
+      data[i + 1].open < data[i].open ? 1 : 0,
+    ]);
+  }
+
+  return { input, output };
+};
+
+const predict = (model, data) => {
+  const input = [
+    data.slice(-windowSize).map((d) => d.open),
+    data.slice(-windowSize).map((d) => d.high),
+    data.slice(-windowSize).map((d) => d.low),
+    data.slice(-windowSize).map((d) => d.close),
+    data.slice(-windowSize).map((d) => d.volume),
+  ];
+
+  const xs = tf.tensor([input]);
+  const ys = model.predict(xs);
+
+  const trend = ys.dataSync()[0] > ys.dataSync()[1] ? 'up' : 'down';
+
+  return trend;
+};
+
+const windowSize = 24 * 60; // 1 day
 
 const data = [];
+
 fs.createReadStream('price.csv')
-  .pipe(csv({ separator: ';' }))
+  .pipe(csv())
   .on('data', (row) => {
-    data.push([Number(row['Open']), Number(row['High']), Number(row['Low']), Number(row['Close']), Number(row['Volume']), Number(row['Adj Close'])]);
+    data.push({
+      date: row.date,
+      time: row.time,
+      open: parseFloat(row.open.replace('.', '').replace(',', '.')),
+      high: parseFloat(row.high.replace('.', '').replace(',', '.')),
+      low: parseFloat(row.low.replace('.', '').replace(',', '.')),
+      close: parseFloat(row.close.replace('.', '').replace(',', '.')),
+      volume: parseInt(row.volume),
+    });
   })
   .on('end', () => {
-    const tensorData = tf.tensor2d(data, [data.length, data[0].length]);
-    console.log(tensorData.shape);
+    console.log('CSV file successfully processed');
+
+    const { input, output } = prepareData(data, windowSize);
+
+    const xs = tf.tensor(input);
+    const ys = tf.tensor(output);
+
+    const model = tf.sequential();
+
+    model.add(
+      tf.layers.lstm({
+        units: 256,
+        inputShape: [windowSize, 5],
+        returnSequences: true,
+      })
+    );
+    model.add(tf.layers.dropout({ rate: 0.2 }));
+    model.add(tf.layers.lstm({ units: 128, returnSequences: true }));
+    model.add(tf.layers.dropout({ rate: 0.2 }));
+    model.add(tf.layers.lstm({ units: 64 }));
+    model.add(tf.layers.dropout({ rate: 0.2 }));
+    model.add(tf.layers.dense({ units: 2, activation: 'softmax' }));
+
+    model.compile({
+      optimizer: tf.train.adam(),
+      loss: 'categoricalCrossentropy',
+      metrics: ['accuracy'],
+    });
+
+    model.fit(xs, ys, {
+      epochs: 100,
+      batchSize: 32,
+      validationSplit: 0.1,
+      shuffle: true,
+      callbacks: tf.callbacks.earlyStopping({ monitor: 'val_loss', patience: 5 }),
+    });
+
+    const trend = predict(model, data);
+    console.log(`Trend: ${trend}`);
   });
-
-  // Создание датасетов для обучения и валидации модели
-  const windowSize = 24; // Длина последовательности
-  const shiftSize = 1; // Шаг смещения последовательности
-  const trainDataset = windowedDataset(tensorData.slice([0, 0], [-1, tensorData.shape[1]]), windowSize, shiftSize)
-    .shuffle(1000)
-    .batch(32);
-  const valDataset = windowedDataset(tensorData.slice([0, 0], [-1, tensorData.shape[1]]), windowSize, shiftSize)
-    .batch(32)
-    .take(100);
-
-  // Создание модели нейронной сети
-  const model = tf.sequential();
-  model.add(tf.layers.lstm({
-    units: 32,
-    inputShape: [windowSize, tensorData.shape[1] - 1],
-    returnSequences: false
-  }));
-  model.add(tf.layers.dense({
-    units: 16,
-    activation: 'relu'
-  }));
-  model.add(tf.layers.dense({
-    units: 1,
-    activation: 'sigmoid'
-  }));
-  model.compile({
-    optimizer: tf.train.adam(),
-    loss: 'binaryCrossentropy',
-    metrics: ['accuracy']
-  });
-
-  // Обучение модели
-  const epochs = 50;
-  await model.fitDataset(trainDataset, {
-    epochs: epochs,
-    validationData: valDataset,
-    callbacks: tf.node.tensorBoard('./logs')
-  });
-
-  // Предсказание движения тренда на годовом интервале
-  const testData = tensorData.slice([tensorData.shape[0] - windowSize, 0], [windowSize, tensorData.shape[1] - 1]);
-  const prediction = model.predict(testData.reshape([1, windowSize, tensorData.shape[1] - 1]));
-  const trend = prediction.dataSync()[0] > 0.5 ? 'up' : 'down';
-  console.log(`Trend on yearly interval: ${trend}`);
-}
-
-run();
 
