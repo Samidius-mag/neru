@@ -1,25 +1,18 @@
 async function run() {
-  const tf = require('@tensorflow/tfjs-node');
   const fs = require('fs');
+const csv = require('csv-parser');
+const tf = require('@tensorflow/tfjs-node');
 
-  // Загрузка данных из файла price.csv
-  const data = fs.readFileSync('price.csv', 'utf8')
-    .split('\n')
-    .map(line => line.split(';').map(Number));
-
-  // Преобразование данных в тензор
-  const tensorData = tf.tensor2d(data.slice(1), [data.length - 1, data[0].length - 1]);
-
-  function windowedDataset(tensorData, windowSize, shiftSize) {
-    return tf.data.generator(function* () {
-      for (let i = 0; i < tensorData.shape[0] - windowSize; i += shiftSize) {
-        yield {
-          xs: tensorData.slice([i, 0], [windowSize, tensorData.shape[1] - 1]),
-          ys: tensorData.slice([i + windowSize, 3], [1, 1])
-        };
-      }
-    });
-  }
+const data = [];
+fs.createReadStream('price.csv')
+  .pipe(csv({ separator: ';' }))
+  .on('data', (row) => {
+    data.push([Number(row['Open']), Number(row['High']), Number(row['Low']), Number(row['Close']), Number(row['Volume']), Number(row['Adj Close'])]);
+  })
+  .on('end', () => {
+    const tensorData = tf.tensor2d(data, [data.length, data[0].length]);
+    console.log(tensorData.shape);
+  });
 
   // Создание датасетов для обучения и валидации модели
   const windowSize = 24; // Длина последовательности
