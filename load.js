@@ -1,7 +1,7 @@
 const csv = require('csvtojson');
 const tf = require('@tensorflow/tfjs');
 
-const filePath = 'price.txt';
+const filePath = 'p2.txt';
 
 csv()
   .fromFile(filePath)
