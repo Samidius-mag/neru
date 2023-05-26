@@ -38,7 +38,7 @@ csv()
     model.compile({optimizer: 'adam', loss: 'binaryCrossentropy', metrics: ['accuracy']});
 
     const batchSize = 32;
-    const epochs = 50;
+    const epochs = 3;
 
     model.fit(xsTensor, ysTensor, {
       batchSize,
