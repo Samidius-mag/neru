@@ -1,96 +1,63 @@
-const csvUrl = 'price.csv';
+const tf = require('@tensorflow/tfjs-node');
+const fs = require('fs');
 
-// Загрузка CSV файла и преобразование его в массив объектов
-async function loadCSV() {
-  const response = await fetch(csvUrl);
-  const csvData = await response.text();
-  const parsedData = Papa.parse(csvData, { header: true }).data;
-  return parsedData;
-}
+// Загрузка данных из файла price.csv
+const data = fs.readFileSync('price.csv', 'utf8')
+  .split('\n')
+  .map(line => line.split(';').map(Number));
 
-// Подготовка данных для обучения модели
-const features = ['OPEN', 'HIGH', 'LOW', 'CLOSE'];
-const label = 'TREND';
-
-function normalizeData(data) {
-  const normalizedData = {};
-  features.forEach((feature) => {
-    const columnData = data.map((row) => parseFloat(row[feature].replace(/\./g, '').replace(',', '.')));
-    const min = Math.min(...columnData);
-    const max = Math.max(...columnData);
-    normalizedData[feature] = columnData.map((value) => (value - min) / (max - min));
+// Преобразование данных в тензор
+const tensorData = tf.tensor2d(data.slice(1), [data.length - 1, data[0].length - 1]);
+function windowedDataset(tensorData, windowSize, shiftSize) {
+  return tf.data.generator(function* () {
+    for (let i = 0; i < tensorData.shape[0] - windowSize; i += shiftSize) {
+      yield {
+        xs: tensorData.slice([i, 0], [windowSize, tensorData.shape[1] - 1]),
+        ys: tensorData.slice([i + windowSize, 3], [1, 1])
+      };
+    }
   });
-  const labelData = data.map((row) => row[label]);
-  return { features: normalizedData, label: labelData };
 }
 
-// Создание модели TensorFlowJS
+// Создание датасетов для обучения и валидации модели
+const windowSize = 24; // Длина последовательности
+const shiftSize = 1; // Шаг смещения последовательности
+const trainDataset = windowedDataset(tensorData.slice([0, 0], [-1, tensorData.shape[1]]), windowSize, shiftSize)
+  .shuffle(1000)
+  .batch(32);
+const valDataset = windowedDataset(tensorData.slice([0, 0], [-1, tensorData.shape[1]]), windowSize, shiftSize)
+  .batch(32)
+  .take(100);
+// Создание модели нейронной сети
 const model = tf.sequential();
-model.add(tf.layers.dense({ inputShape: [4], units: 10, activation: 'relu' }));
-model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
-model.compile({ optimizer: 'adam', loss: 'binaryCrossentropy', metrics: ['accuracy'] });
-
+model.add(tf.layers.lstm({
+  units: 32,
+  inputShape: [windowSize, tensorData.shape[1] - 1],
+  returnSequences: false
+}));
+model.add(tf.layers.dense({
+  units: 16,
+  activation: 'relu'
+}));
+model.add(tf.layers.dense({
+  units: 1,
+  activation: 'sigmoid'
+}));
+model.compile({
+  optimizer: tf.train.adam(),
+  loss: 'binaryCrossentropy',
+  metrics: ['accuracy']
+});
 // Обучение модели
-async function trainModel() {
-  const data = await loadCSV();
-  const normalizedData = normalizeData(data);
-  const xs = tf.tensor2d(Object.values(normalizedData.features).map((feature) => feature.slice(0, -1)));
-  const ys = tf.tensor1d(normalizedData.label.slice(1).map((label, index) => label > normalizedData.label[index] ? 1 : 0));
-  await model.fit(xs, ys, { epochs: 100 });
-}
+const epochs = 50;
+await model.fitDataset(trainDataset, {
+  epochs: epochs,
+  validationData: valDataset,
+  callbacks: tf.node.tensorBoard('./logs')
+});
+// Предсказание движения тренда на годовом интервале
+const testData = tensorData.slice([tensorData.shape[0] - windowSize, 0], [windowSize, tensorData.shape[1] - 1]);
+const prediction = model.predict(testData.reshape([1, windowSize, tensorData.shape[1] - 1]));
+const trend = prediction.dataSync()[0] > 0.5 ? 'up' : 'down';
+console.log(`Trend on yearly interval: ${trend}`);
 
-// Предсказание движения тренда на различных временных интервалах
-async function predictTrend() {
-  const data = await loadCSV();
-
-  // Предсказание движения тренда на годовом интервале
-  const yearData = data.filter((row) => row.DATE.endsWith('0101'));
-  const yearNormalizedData = normalizeData(yearData);
-  const yearXs = tf.tensor2d(Object.values(yearNormalizedData.features).map((feature) => feature.slice(0, -1)));
-  const yearPredictions = model.predict(yearXs).dataSync();
-
-  // Предсказание движения тренда на месячном интервале
-  const monthData = data.filter((row) => row.DATE.endsWith('01'));
-  const monthNormalizedData = normalizeData(monthData);
-  const monthXs = tf.tensor2d(Object.values(monthNormalizedData.features).map((feature) => feature.slice(0, -1)));
-  const monthPredictions = model.predict(monthXs).dataSync();
-
-  // Предсказание движения тренда на дневном интервале
-  const dayData = data;
-  const dayNormalizedData = normalizeData(dayData);
-  const dayXs = tf.tensor2d(Object.values(dayNormalizedData.features).map((feature) => feature.slice(0, -1)));
-  const dayPredictions = model.predict(dayXs).dataSync();
-
-  // Предсказание движения тренда на 12-часовом интервале
-  const halfDayData = data.filter((row) => parseInt(row.TIME) % 1200 === 0);
-  const halfDayNormalizedData = normalizeData(halfDayData);
-  const halfDayXs = tf.tensor2d(Object.values(halfDayNormalizedData.features).map((feature) => feature.slice(0, -1)));
-  const halfDayPredictions = model.predict(halfDayXs).dataSync();
-
-  // Предсказание движения тренда на 4-часовом интервале
-  const fourHourData = data.filter((row) => parseInt(row.TIME) % 400 === 0);
-  const fourHourNormalizedData = normalizeData(fourHourData);
-  const fourHourXs = tf.tensor2d(Object.values(fourHourNormalizedData.features).map((feature) => feature.slice(0, -1)));
-  const fourHourPredictions = model.predict(fourHourXs).dataSync();
-
-  // Предсказание движения тренда на часовом интервале
-  const hourData = data.filter((row) => parseInt(row.TIME) % 100 === 0);
-  const hourNormalizedData = normalizeData(hourData);
-  const hourXs = tf.tensor2d(Object.values(hourNormalizedData.features).map((feature) => feature.slice(0, -1)));
-  const hourPredictions = model.predict(hourXs).dataSync();
-
-  console.log('Year predictions:', yearPredictions.map((prediction) => prediction > 0.5 ? 'Up' : 'Down'));
-  console.log('Month predictions:', monthPredictions.map((prediction) => prediction > 0.5 ? 'Up' : 'Down'));
-  console.log('Day predictions:', dayPredictions.map((prediction) => prediction > 0.5 ? 'Up' : 'Down'));
-  console.log('Half day predictions:', halfDayPredictions.map((prediction) => prediction > 0.5 ? 'Up' : 'Down'));
-  console.log('Four hour predictions:', fourHourPredictions.map((prediction) => prediction > 0.5 ? 'Up' : 'Down'));
-  console.log('Hour predictions:', hourPredictions.map((prediction) => prediction > 0.5 ? 'Up' : 'Down'));
-}
-
-// Обучение модели и предсказание движения тренда
-async function run() {
-  await trainModel();
-  await predictTrend();
-}
-
-run();
