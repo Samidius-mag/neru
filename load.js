@@ -32,8 +32,8 @@ csv()
 
     const model = tf.sequential();
 
-    model.add(tf.layers.lstm({units: 64, inputShape: [12, 7]}));
-    model.add(tf.layers.dense({units: 1, activation: 'sigmoid'}));
+    model.add(tf.layers.lstm({units: 64, inputShape: [12, 7], kernelInitializer: 'glorotNormal'}));
+    model.add(tf.layers.dense({units: 1, activation: 'sigmoid', kernelInitializer: 'glorotNormal'}));
 
     model.compile({optimizer: 'adam', loss: 'binaryCrossentropy', metrics: ['accuracy']});
 
@@ -57,11 +57,15 @@ csv()
     const predictions = model.predict(testXsTensor);
 
     console.log('Predictions:');
-    console.log(`Yearly trend: ${predictions.get(0, 0).toFixed(4)}`);
-    console.log(`Monthly trend: ${predictions.get(0, 1).toFixed(4)}`);
-    console.log(`Daily trend: ${predictions.get(0, 2).toFixed(4)}`);
-    console.log(`12-hour trend: ${predictions.get(0, 3).toFixed(4)}`);
-    console.log(`4-hour trend: ${predictions.get(0, 4).toFixed(4)}`);
-    console.log(`Hourly trend: ${predictions.get(0, 5).toFixed(4)}`);
+    if (predictions instanceof tf.Tensor) {
+      console.log(`Yearly trend: ${predictions.get(0, 0).toFixed(4)}`);
+      console.log(`Monthly trend: ${predictions.get(0, 1).toFixed(4)}`);
+      console.log(`Daily trend: ${predictions.get(0, 2).toFixed(4)}`);
+      console.log(`12-hour trend: ${predictions.get(0, 3).toFixed(4)}`);
+      console.log(`4-hour trend: ${predictions.get(0, 4).toFixed(4)}`);
+      console.log(`Hourly trend: ${predictions.get(0, 5).toFixed(4)}`);
+    } else {
+      console.log('Predictions are not a tensor');
+    }
   });
 
