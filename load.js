@@ -1,37 +1,67 @@
+const csv = require('csvtojson');
 const tf = require('@tensorflow/tfjs');
-const fs = require('fs');
 
-// Загрузка данных из файла
-const data = fs.readFileSync('price.txt', 'utf8');
+const filePath = 'price.txt';
 
-// Преобразование данных в массив чисел
-const prices = data.split('\n').map(price => parseFloat(price));
+csv()
+  .fromFile(filePath)
+  .then((jsonObj) => {
+    const data = jsonObj.map((item) => [
+      item.date,
+      item.time,
+      item.open,
+      item.high,
+      item.low,
+      item.close,
+      item.volume,
+    ]);
 
-// Создание массива часовых свечей
-const candles = [];
-for (let i = 0; i < prices.length - 4; i++) {
-  candles.push(prices.slice(i, i + 5));
-}
+    const xs = [];
+    const ys = [];
 
-// Преобразование массива часовых свечей в тензор
-const xs = tf.tensor2d(candles.slice(0, -1));
-const ys = tf.tensor2d(candles.slice(1));
-// Создание модели нейронной сети
-const model = tf.sequential();
-model.add(tf.layers.dense({ units: 10, inputShape: [5] }));
-model.add(tf.layers.dense({ units: 5 }));
-model.add(tf.layers.dense({ units: 5 }));
+    for (let i = 0; i < data.length - 12; i++) {
+      const input = data.slice(i, i + 12);
+      const output = data[i + 12][5] > data[i + 11][5] ? 1 : 0;
 
-// Компиляция модели
-model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
+      xs.push(input);
+      ys.push(output);
+    }
 
-// Обучение модели
-model.fit(xs, ys, { epochs: 100 }).then(() => {
-  // Использование модели для предсказания движения тренда
-  const predictions = model.predict(xs);
+    const xsTensor = tf.tensor3d(xs);
+    const ysTensor = tf.tensor1d(ys);
 
-  // Вывод результатов
-  console.log('Predictions:');
-  console.log(predictions.arraySync());
-});
+    const model = tf.sequential();
+
+    model.add(tf.layers.lstm({units: 64, inputShape: [12, 7]}));
+    model.add(tf.layers.dense({units: 1, activation: 'sigmoid'}));
+
+    model.compile({optimizer: 'adam', loss: 'binaryCrossentropy', metrics: ['accuracy']});
+
+    const batchSize = 32;
+    const epochs = 50;
+
+    model.fit(xsTensor, ysTensor, {
+      batchSize,
+      epochs,
+      shuffle: true,
+      callbacks: {
+        onEpochEnd: (epoch, logs) => {
+          console.log(`Epoch ${epoch}: loss = ${logs.loss.toFixed(4)}, accuracy = ${logs.acc.toFixed(4)}`);
+        },
+      },
+    });
+
+    const testData = data.slice(data.length - 12);
+    const testXsTensor = tf.tensor3d([testData]);
+
+    const predictions = model.predict(testXsTensor);
+
+    console.log('Predictions:');
+    console.log(`Yearly trend: ${predictions.get(0, 0).toFixed(4)}`);
+    console.log(`Monthly trend: ${predictions.get(0, 1).toFixed(4)}`);
+    console.log(`Daily trend: ${predictions.get(0, 2).toFixed(4)}`);
+    console.log(`12-hour trend: ${predictions.get(0, 3).toFixed(4)}`);
+    console.log(`4-hour trend: ${predictions.get(0, 4).toFixed(4)}`);
+    console.log(`Hourly trend: ${predictions.get(0, 5).toFixed(4)}`);
+  });
 
